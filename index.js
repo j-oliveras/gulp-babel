@@ -7,63 +7,76 @@ const replaceExt = require('replace-ext');
 const babel = require('@babel/core');
 
 function replaceExtension(fp) {
-	return path.extname(fp) ? replaceExt(fp, '.js') : fp;
+    return path.extname(fp) ? replaceExt(fp, '.js') : fp;
 }
 
 module.exports = function (opts) {
-	opts = opts || {};
+    opts = opts || {};
 
-	return through.obj(function (file, enc, cb) {
-		if (file.isNull()) {
-			cb(null, file);
-			return;
-		}
+    return through.obj(function (file, enc, cb) {
+        if (file.isNull()) {
+            cb(null, file);
+            return;
+        }
 
-		if (file.isStream()) {
-			cb(new PluginError('gulp-babel', 'Streaming not supported'));
-			return;
-		}
+        if (file.isStream()) {
+            cb(new PluginError('gulp-babel', 'Streaming not supported'));
+            return;
+        }
 
-		if (!supportsCallerOption()) {
-			cb(new PluginError('gulp-babel', '@babel/core@^7.0.0 is required'));
-			return;
-		}
+        if (!supportsCallerOption()) {
+            cb(new PluginError('gulp-babel', '@babel/core@^7.0.0 is required'));
+            return;
+        }
 
-		const fileOpts = Object.assign({}, opts, {
-			filename: file.path,
-			filenameRelative: file.relative,
-			sourceMap: Boolean(file.sourceMap),
-			sourceFileName: file.relative,
-			caller: Object.assign(
-				{name: 'babel-gulp'},
-				opts.caller
-			)
-		});
 
-		babel.transformAsync(file.contents.toString(), fileOpts).then(res => {
-			if (res) {
-				if (file.sourceMap && res.map) {
-					res.map.file = replaceExtension(file.relative);
-					applySourceMap(file, res.map);
-				}
+        const isInputSourceMapPresent = Boolean(file.sourceMap);
+        const defaultOpts = {
+            filename: file.path,
+            filenameRelative: file.relative,
+            caller: Object.assign(
+                { name: 'babel-gulp' },
+                opts.caller
+            )
+        };
 
-				file.contents = Buffer.from(res.code);
-				file.path = replaceExtension(file.path);
+        if (isInputSourceMapPresent) {
+            defaultOpts.inputSourceMap = file.sourceMap;
+        }
+        else {
+            defaultOpts.sourceFileName = file.relative;
+        }
 
-				file.babel = res.metadata;
-			}
+        const fileOpts = Object.assign({}, opts, defaultOpts);
 
-			this.push(file);
-		}).catch(error => {
-			this.emit('error', new PluginError('gulp-babel', error, {
-				fileName: file.path,
-				showProperties: false
-			}));
-		}).then(
-			() => cb(),
-			() => cb()
-		);
-	});
+        babel.transformAsync(file.contents.toString(), fileOpts).then(res => {
+            if (res) {
+                if (file.sourceMap && res.map) {
+                    if (isInputSourceMapPresent) {
+                        file.sourceMap = res.map;
+                    } else {
+                        res.map.file = replaceExtension(file.relative);
+                        applySourceMap(file, res.map);
+                    }
+                }
+
+                file.contents = Buffer.from(res.code);
+                file.path = replaceExtension(file.path);
+
+                file.babel = res.metadata;
+            }
+
+            this.push(file);
+        }).catch(error => {
+            this.emit('error', new PluginError('gulp-babel', error, {
+                fileName: file.path,
+                showProperties: false
+            }));
+        }).then(
+            () => cb(),
+            () => cb()
+        );
+    });
 };
 
 // Note: We can remove this eventually, I'm just adding it so that people have
@@ -71,20 +84,20 @@ module.exports = function (opts) {
 // hard-to-diagnose errors about unknown 'caller' options.
 let supportsCallerOptionFlag;
 function supportsCallerOption() {
-	if (supportsCallerOptionFlag === undefined) {
-		try {
-			// Rather than try to match the Babel version, we just see if it throws
-			// when passed a 'caller' flag, and use that to decide if it is supported.
-			babel.loadPartialConfig({
-				caller: undefined,
-				babelrc: false,
-				configFile: false
-			});
-			supportsCallerOptionFlag = true;
-		} catch (_) {
-			supportsCallerOptionFlag = false;
-		}
-	}
+    if (supportsCallerOptionFlag === undefined) {
+        try {
+            // Rather than try to match the Babel version, we just see if it throws
+            // when passed a 'caller' flag, and use that to decide if it is supported.
+            babel.loadPartialConfig({
+                caller: undefined,
+                babelrc: false,
+                configFile: false
+            });
+            supportsCallerOptionFlag = true;
+        } catch (_) {
+            supportsCallerOptionFlag = false;
+        }
+    }
 
-	return supportsCallerOptionFlag;
+    return supportsCallerOptionFlag;
 }
