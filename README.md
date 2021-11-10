@@ -1,3 +1,6 @@
+Changes from original gulp-babel:
+* Apply https://github.com/babel/gulp-babel/pull/113 (correct usage of input sourcemaps).
+
 > This readme is for gulp-babel v8 + Babel v7
 > Check the [7.x branch](https://github.com/babel/gulp-babel/tree/v7-maintenance) for docs with Babel v6 usage
 
